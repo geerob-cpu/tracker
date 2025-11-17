@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Patient Tracker v4 (Optional Photo + Tentative Date)</title>
+
+<style>
+body {
+  font-family: "Inter", sans-serif;
+  background: #f5f5f5;
+  margin: 0;
+  padding: 1rem;
+}
+
+h1 {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.container {
+  max-width: 850px;
+  margin: auto;
+}
+
+input, button, select {
+  padding: 0.6rem;
+  margin: 0.3rem 0;
+  width: 100%;
+  font-size: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 0.5rem;
+}
+
+button {
+  cursor: pointer;
+  background: #1976d2;
+  color: white;
+  border: none;
+}
+button:hover { background: #0d47a1; }
+
+.patient-card {
+  background: white;
+  padding: 1rem;
+  border-radius: 0.7rem;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  margin-bottom: 1rem;
+}
+
+.done {
+  border-left: 5px solid green;
+  opacity: 0.7;
+}
+
+.card-buttons button {
+  width: 23%;
+  margin-right: 1%;
+}
+
+.patient-photo {
+  width: 100%;
+  max-width: 200px;
+  height: auto;
+  border-radius: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.edit-icon {
+  cursor: pointer;
+  display: inline-block;
+  margin-left: 8px;
+  color: #1976d2;
+  font-size: 1.1rem;
+}
+
+.save-btn, .cancel-btn {
+  width: auto;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.remove-photo-btn {
+  background: #d32f2f;
+  margin-top: 0.3rem;
+}
+
+@media print {
+  #controls, #searchBar, .card-buttons button, .remove-photo-btn, .edit-icon {
+    display: none;
+  }
+}
+</style>
+</head>
+<body>
+
+<h1>Patient Tracker App 📋 v4</h1>
+
+<div class="container">
+
+  <!-- Search Bar -->
+  <input type="text" id="searchBar" placeholder="Search patient, diagnosis, procedure..." onkeyup="searchPatients()">
+
+  <!-- Input fields -->
+  <div id="controls">
+    <input type="text" id="name" placeholder="Patient Name">
+    <input type="number" id="age" placeholder="Age">
+
+    <select id="sex">
+      <option value="">Sex</option>
+      <option>Male</option>
+      <option>Female</option>
+    </select>
+
+    <input type="text" id="contact" placeholder="Contact Number">
+    <input type="text" id="diagnosis" placeholder="Diagnosis">
+    <input type="text" id="procedure" placeholder="Procedure">
+
+    <!-- Tentative Date -->
+    <label><b>Tentative Date of Procedure:</b></label>
+    <input type="date" id="tentativeDate">
+
+    <!-- Photo upload -->
+    <label>Patient Photo (Optional):</label>
+    <input type="file" id="photoUpload" accept="image/*">
+
+    <button onclick="addPatient()">➕ Add New Patient</button>
+    <button onclick="printSummary()">🖨 Print Summary</button>
+  </div>
+
+  <!-- Patient List -->
+  <div id="patientList"></div>
+
+</div>
+
+<script>
+// Notifications
+if ("Notification" in window && Notification.permission !== "granted") {
+  Notification.requestPermission();
+}
+
+function sendNotification(title, body) {
+  if (Notification.permission === "granted") {
+    new Notification(title, { body: body });
+  }
+}
+
+// Load patients
+let patients = JSON.parse(localStorage.getItem("patients") || "[]");
+displayPatients();
+
+// Save to local storage
+function savePatients() {
+  localStorage.setItem("patients", JSON.stringify(patients));
+}
+
+// -------------------------------
+// ADD PATIENT
+// -------------------------------
+function addPatient() {
+  let photoData = "";
+  const file = document.getElementById("photoUpload").files[0];
+
+  if (file) {
+    const reader = new FileReader();
+    reader.onload = e => saveNewPatient(e.target.result);
+    reader.readAsDataURL(file);
+  } else {
+    saveNewPatient("");
+  }
+}
+
+function saveNewPatient(photoData) {
+  const patient = {
+    id: Date.now(),
+    name: name.value,
+    age: age.value,
+    sex: sex.value,
+    contact: contact.value,
+    diagnosis: diagnosis.value,
+    procedure: procedure.value,
+    date: tentativeDate.value || "",
+    done: false,
+    photo: photoData
+  };
+
+  if (!patient.name || !patient.diagnosis || !patient.procedure) {
+    alert("Name, diagnosis, and procedure are required.");
+    return;
+  }
+
+  patients.push(patient);
+  savePatients();
+  displayPatients();
+
+  name.value = age.value = sex.value = contact.value =
+  diagnosis.value = procedure.value = tentativeDate.value =
+  photoUpload.value = "";
+}
+
+// -------------------------------
+// DISPLAY PATIENTS
+// -------------------------------
+function displayPatients(list = patients) {
+  const container = document.getElementById("patientList");
+  container.innerHTML = "";
+
+  list.forEach(p => {
+    const card = document.createElement("div");
+    card.className = "patient-card" + (p.done ? " done" : "");
+
+    card.innerHTML = `
+      <strong>Name: <span id="name-${p.id}">${p.name}</span></strong>
+      <span class="edit-icon" onclick="editField('${p.id}','name')">✏️</span><br>
+
+      Age: <span id="age-${p.id}">${p.age}</span>
+      <span class="edit-icon" onclick="editField('${p.id}','age')">✏️</span><br>
+
+      Sex: <span id="sex-${p.id}">${p.sex}</span>
+      <span class="edit-icon" onclick="editField('${p.id}','sex')">✏️</span><br>
+
+      Contact: <span id="contact-${p.id}">${p.contact}</span>
+      <span class="edit-icon" onclick="editField('${p.id}','contact')">✏️</span><br>
+
+      Diagnosis: <span id="diagnosis-${p.id}">${p.diagnosis}</span>
+      <span class="edit-icon" onclick="editField('${p.id}','diagnosis')">✏️</span><br>
+
+      Procedure: <span id="procedure-${p.id}">${p.procedure}</span>
+      <span class="edit-icon" onclick="editField('${p.id}','procedure')">✏️</span><br>
+
+      Tentative Date: <span id="date-${p.id}">${p.date || "Not Set"}</span>
+      <span class="edit-icon" onclick="editField('${p.id}','date')">✏️</span><br><br>
+
+      ${p.photo ? `<img src="${p.photo}" class="patient-photo">` : ""}
+
+      ${p.photo ? `<button class="remove-photo-btn" onclick="removePhoto(${p.id})">Remove Photo</button>` : ""}
+
+      <div class="card-buttons">
+        <button onclick="sendReminder(${p.id})">🔔 Reminder</button>
+        <button onclick="markDone(${p.id})">✅ Done</button>
+        <button onclick="deletePatient(${p.id})" style="background:#d32f2f;">🗑 Delete</button>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+
+  checkDueNotifications();
+}
+
+// -------------------------------
+// INLINE EDITING
+// -------------------------------
+function editField(id, field) {
+  const span = document.getElementById(`${field}-${id}`);
+  const value = span.textContent === "Not Set" ? "" : span.textContent;
+
+  span.innerHTML = `
+    <input id="edit-${field}-${id}" value="${value}">
+    <button class="save-btn" onclick="saveEdit('${id}','${field}')">Save</button>
+    <button class="cancel-btn" onclick="cancelEdit('${id}','${field}','${value}')">Cancel</button>
+  `;
+}
+
+function saveEdit(id, field) {
+  const newValue = document.getElementById(`edit-${field}-${id}`).value;
+
+  patients = patients.map(p =>
+    p.id == id ? {...p, [field]: newValue} : p
+  );
+
+  savePatients();
+  displayPatients();
+}
+
+function cancelEdit(id, field, oldValue) {
+  document.getElementById(`${field}-${id}`).textContent = oldValue;
+}
+
+// -------------------------------
+// PHOTO REMOVE
+// -------------------------------
+function removePhoto(id) {
+  patients = patients.map(p => p.id === id ? {...p, photo: ""} : p);
+  savePatients();
+  displayPatients();
+}
+
+// -------------------------------
+// STATUS + DELETE
+// -------------------------------
+function markDone(id) {
+  patients = patients.map(p => p.id === id ? {...p, done: !p.done} : p);
+  savePatients();
+  displayPatients();
+}
+
+function deletePatient(id) {
+  if (confirm("Delete this patient?")) {
+    patients = patients.filter(p => p.id !== id);
+    savePatients();
+    displayPatients();
+  }
+}
+
+// -------------------------------
+// SEARCH
+// -------------------------------
+function searchPatients() {
+  const q = searchBar.value.toLowerCase();
+  const filtered = patients.filter(p =>
+    p.name.toLowerCase().includes(q) ||
+    p.diagnosis.toLowerCase().includes(q) ||
+    p.procedure.toLowerCase().includes(q)
+  );
+  displayPatients(filtered);
+}
+
+// -------------------------------
+// PRINT
+// -------------------------------
+function printSummary() {
+  window.print();
+}
+
+// -------------------------------
+// REMINDERS
+// -------------------------------
+function sendReminder(id) {
+  const p = patients.find(x => x.id === id);
+  if (!p.date) return alert("No tentative date set.");
+
+  sendNotification(
+    "Patient Reminder",
+    `Patient Reminder: ${p.name}, ${p.diagnosis}, procedure planned on ${p.date}.`
+  );
+}
+
+function checkDueNotifications() {
+  const today = new Date();
+  const tomorrow = new Date();
+  tomorrow.setDate(today.getDate() + 1);
+
+  patients.forEach(p => {
+    if (!p.date) return;
+
+    const d = new Date(p.date);
+
+    if (d.toDateString() === today.toDateString()) {
+      sendNotification("Scheduled Today",
+        `Patient Reminder: ${p.name}, ${p.diagnosis}, procedure planned on ${p.date}.`);
+    }
+
+    if (d.toDateString() === tomorrow.toDateString()) {
+      sendNotification("Scheduled Tomorrow",
+        `Patient Reminder: ${p.name}, ${p.diagnosis}, procedure planned on ${p.date}.`);
+    }
+  });
+}
+</script>
+
+</body>
+</html>
